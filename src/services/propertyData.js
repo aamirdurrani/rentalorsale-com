@@ -1,27 +1,58 @@
 // src/services/propertyData.js
-// Uses Apify REST API directly - works in browser!
+import { supabase } from './supabase';
 
 const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN;
 const ACTOR_ID = 'PO5rg9zAiPhq2Ywcj';
 
-const cache = new Map();
+// Simple hash for address matching
+function simpleHash(str) {
+    return str.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 100);
+}
 
 export async function getPropertyData(address, zipCode) {
-    const cacheKey = `${address}-${zipCode}`;
+    const addressHash = simpleHash(address);
     
-    // Check cache (24 hours)
-    if (cache.has(cacheKey)) {
-        const cached = cache.get(cacheKey);
-        if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
-            console.log('✅ Using cached property data');
-            return cached.data;
-        }
-    }
+    // STEP 1: Check Supabase cache FIRST
+    console.log(`🔍 Checking cache for: ${address}`);
     
     try {
-        console.log(`🔄 Fetching property data from Apify for: ${address}`);
+        const { data: cached, error } = await supabase
+            .from('property_cache')
+            .select('*')
+            .eq('address_hash', addressHash)
+            .maybeSingle();
         
-        // Step 1: Start the Actor run
+        if (cached && !error) {
+            console.log(`✅ CACHE HIT! Value: $${cached.estimated_value.toLocaleString()}`);
+            
+            // Update access count
+            await supabase
+                .from('property_cache')
+                .update({ 
+                    last_accessed: new Date().toISOString(),
+                    times_accessed: (cached.times_accessed || 0) + 1
+                })
+                .eq('id', cached.id);
+            
+            return {
+                address: cached.address,
+                estimatedValue: cached.estimated_value,
+                estimatedRent: cached.estimated_rent,
+                estimatedMortgage: cached.estimated_mortgage,
+                propertyType: cached.property_type || 'Single Family',
+                source: `Cache (${cached.source || 'Previous lookup'})`,
+                confidence: 'High',
+                isCached: true
+            };
+        }
+    } catch (error) {
+        console.log('Cache miss or error:', error.message);
+    }
+    
+    // STEP 2: Not in cache - get estimate from Apify
+    console.log(`🔄 CACHE MISS! Getting estimate from Apify for: ${address}`);
+    
+    try {
         const runResponse = await fetch(`https://api.apify.com/v2/acts/${ACTOR_ID}/runs`, {
             method: 'POST',
             headers: {
@@ -37,30 +68,20 @@ export async function getPropertyData(address, zipCode) {
         const runData = await runResponse.json();
         const runId = runData.data.id;
         
-        console.log(`Actor run started with ID: ${runId}`);
-        
-        // Step 2: Wait for the run to complete (poll every 2 seconds)
+        // Wait for completion (max 15 seconds)
         let runStatus = 'RUNNING';
         let attempts = 0;
-        const maxAttempts = 30; // 60 seconds max wait
-        
-        while (runStatus === 'RUNNING' && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
+        while (runStatus === 'RUNNING' && attempts < 15) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
             const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
                 headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` }
             });
             const statusData = await statusResponse.json();
             runStatus = statusData.data.status;
             attempts++;
-            console.log(`Run status: ${runStatus} (attempt ${attempts})`);
         }
         
-        if (runStatus !== 'SUCCEEDED') {
-            throw new Error(`Actor run failed with status: ${runStatus}`);
-        }
-        
-        // Step 3: Get the results
+        // Get results
         const datasetResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items`, {
             headers: { 'Authorization': `Bearer ${APIFY_API_TOKEN}` }
         });
@@ -69,24 +90,56 @@ export async function getPropertyData(address, zipCode) {
         if (items && items.length > 0) {
             const property = items[0];
             const result = {
-                address: property.address,
-                estimatedValue: property.estimatedValue || 400000,
-                estimatedRent: property.estimatedRent || Math.round(property.estimatedValue * 0.006),
-                estimatedMortgage: property.estimatedMortgage || Math.round(property.estimatedValue * 0.004),
+                address: address,
+                estimatedValue: property.estimatedValue,
+                estimatedRent: property.estimatedRent,
+                estimatedMortgage: property.estimatedMortgage,
                 propertyType: property.propertyType || 'Single Family',
-                source: 'Apify API'
+                source: property.source || 'Apify Estimate',
+                confidence: property.confidenceNote || 'Standard'
             };
             
-            cache.set(cacheKey, { data: result, timestamp: Date.now() });
-            console.log(`✅ Property data received: $${result.estimatedValue.toLocaleString()}`);
+            // STEP 3: SAVE to Supabase for future users!
+            await saveToCache(address, zipCode, addressHash, result);
+            
             return result;
         }
-        
-        return getFallbackData(address);
-        
     } catch (error) {
-        console.error('❌ Apify API error:', error);
-        return getFallbackData(address);
+        console.error('Apify error:', error);
+    }
+    
+    // STEP 4: Ultimate fallback
+    return getFallbackData(address);
+}
+
+async function saveToCache(address, zipCode, addressHash, data) {
+    try {
+        const { error } = await supabase
+            .from('property_cache')
+            .upsert({
+                address: address,
+                address_hash: addressHash,
+                zip_code: zipCode,
+                estimated_value: data.estimatedValue,
+                estimated_rent: data.estimatedRent,
+                estimated_mortgage: data.estimatedMortgage,
+                property_type: data.propertyType,
+                source: data.source,
+                confidence: data.confidence,
+                created_at: new Date().toISOString(),
+                last_accessed: new Date().toISOString(),
+                times_accessed: 1
+            }, {
+                onConflict: 'address_hash'
+            });
+        
+        if (error) {
+            console.error('Save to cache error:', error);
+        } else {
+            console.log(`💾 Saved to cache! Future users will get instant results.`);
+        }
+    } catch (error) {
+        console.error('Save error:', error);
     }
 }
 
@@ -97,7 +150,8 @@ function getFallbackData(address) {
         estimatedRent: 2000,
         estimatedMortgage: 1600,
         propertyType: 'Single Family',
-        source: 'Fallback Estimate',
-        isEstimated: true
+        source: 'Standard Estimate',
+        confidence: 'Low',
+        isFallback: true
     };
 }
