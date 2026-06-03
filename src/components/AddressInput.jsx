@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { getPropertyData } from '../services/propertyData'
 
 function AddressInput({ onSubmit }) {
   const [address, setAddress] = useState('')
@@ -33,31 +34,67 @@ function AddressInput({ onSubmit }) {
     document.head.appendChild(script)
   }, [])
 
+  // Function to extract zip code from place
+  const extractZipCode = (place) => {
+    if (place && place.address_components) {
+      const zipComponent = place.address_components.find(component =>
+        component.types.includes('postal_code')
+      )
+      return zipComponent ? zipComponent.long_name : 'unknown'
+    }
+    return 'unknown'
+  }
+
   // Initialize autocomplete when API is ready
   useEffect(() => {
     if (!isApiReady || !inputRef.current || autocompleteRef.current) return
 
     try {
-      // Create autocomplete (classic way - WORKING)
+      // Create autocomplete
       autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ['address'],
         componentRestrictions: { country: 'us' }
       })
 
       // Add listener for when a place is selected
-      autocompleteRef.current.addListener('place_changed', () => {
+      autocompleteRef.current.addListener('place_changed', async () => {
         const place = autocompleteRef.current.getPlace()
         if (place && place.formatted_address) {
           setAddress(place.formatted_address)
+          setIsLoading(true)
           
-          // Auto-submit after selection
-          setTimeout(() => {
+          try {
+            // Extract zip code
+            const zipCode = extractZipCode(place)
+            
+            // Get REAL property data from Apify Actor
+            console.log(`Fetching property data for: ${place.formatted_address}`)
+            const propertyData = await getPropertyData(place.formatted_address, zipCode)
+            
+            console.log('Property data received:', propertyData)
+            
+            // Submit the real data to parent component
+            onSubmit({
+              address: propertyData.address,
+              estimatedValue: propertyData.estimatedValue,
+              estimatedRent: propertyData.estimatedRent,
+              estimatedMortgage: propertyData.estimatedMortgage,
+              propertyType: propertyData.propertyType,
+              source: propertyData.source
+            })
+          } catch (error) {
+            console.error('Error fetching property data:', error)
+            // Fallback to mock data if API fails
             onSubmit({
               address: place.formatted_address,
               estimatedValue: Math.floor(Math.random() * 400000) + 300000,
-              placeId: place.place_id
+              estimatedRent: Math.floor(Math.random() * 2000) + 1500,
+              estimatedMortgage: Math.floor(Math.random() * 1500) + 1000,
+              isEstimated: true
             })
-          }, 300)
+          } finally {
+            setIsLoading(false)
+          }
         }
       })
 
@@ -67,21 +104,38 @@ function AddressInput({ onSubmit }) {
     }
   }, [isApiReady, onSubmit])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!address.trim()) {
       alert('Please enter an address')
       return
     }
     
     setIsLoading(true)
-    setTimeout(() => {
+    try {
+      // Try to get property data for manually entered address
+      const propertyData = await getPropertyData(address, 'unknown')
+      onSubmit({
+        address: propertyData.address,
+        estimatedValue: propertyData.estimatedValue,
+        estimatedRent: propertyData.estimatedRent,
+        estimatedMortgage: propertyData.estimatedMortgage,
+        propertyType: propertyData.propertyType,
+        manualEntry: true
+      })
+    } catch (error) {
+      console.error('Error:', error)
+      // Fallback
       onSubmit({
         address: address,
         estimatedValue: 425000,
-        manualEntry: true
+        estimatedRent: 2125,
+        estimatedMortgage: 1700,
+        manualEntry: true,
+        isEstimated: true
       })
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -113,7 +167,7 @@ function AddressInput({ onSubmit }) {
             disabled={isLoading || !address.trim()}
             className="btn-primary w-full disabled:opacity-50"
           >
-            {isLoading ? 'Analyzing...' : 'Analyze My Property →'}
+            {isLoading ? 'Fetching Property Data...' : 'Analyze My Property →'}
           </button>
           
           <p className="text-xs text-gray-400">
