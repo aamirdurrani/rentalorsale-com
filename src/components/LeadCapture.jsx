@@ -17,39 +17,41 @@ function LeadCapture({ propertyData, results, onComplete }) {
     console.log('📧 Attempting to send email to:', formData.email)
     
     try {
-      const response = await fetch('/send-email.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          name: formData.name,
-          property_address: propertyData?.address,
-          recommendation: results?.betterOption,
-          wealth_difference: results?.wealthDifference,
-          rent_wealth: results?.rentWealth,
-          sell_wealth: results?.sellWealth
-        })
-      });
-      
-      console.log('📧 Response status:', response.status)
-      
-      const data = await response.json();
-      console.log('📧 Response data:', data)
-      
-      if (data.success) {
-        console.log('✅ Email sent successfully to:', formData.email);
-        return true;
-      } else {
-        console.error('❌ Email failed:', data.error);
-        return false;
-      }
+        // Use current domain (works on localhost and live)
+        const baseUrl = window.location.origin;
+        const response = await fetch(`${baseUrl}/send-email.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: formData.email,
+                name: formData.name,
+                property_address: propertyData?.address,
+                recommendation: results?.betterOption,
+                wealth_difference: results?.wealthDifference,
+                rent_wealth: results?.rentWealth,
+                sell_wealth: results?.sellWealth
+            })
+        });
+        
+        console.log('📧 Response status:', response.status)
+        
+        const data = await response.json();
+        console.log('📧 Response data:', data)
+        
+        if (data.success) {
+            console.log('✅ Email sent successfully!');
+            return true;
+        } else {
+            console.error('❌ Email failed:', data.error);
+            return false;
+        }
     } catch (error) {
-      console.error('❌ Email send error:', error);
-      return false;
+        console.error('❌ Email send error:', error);
+        return false;
     }
-  };
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault()
