@@ -12,15 +12,15 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Function to send email via Node.js API
+  // Function to send email via PHP (Hostinger)
   const sendEmailReport = async () => {
     console.log('📧 Attempting to send email to:', formData.email)
     
     try {
         // Use current domain (works on localhost and live)
         const baseUrl = window.location.origin;
-        // CHANGE: Use /api/send-email instead of /send-email.php
-        const response = await fetch(`${baseUrl}/api/send-email`, {
+        // CHANGE: Use /send-email.php (PHP version) instead of /api/send-email
+        const response = await fetch(`${baseUrl}/send-email.php`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
       if (supabaseError) throw supabaseError
       console.log('✅ Lead saved successfully!', data)
       
-      // Send email
+      // Send email via PHP
       const emailSent = await sendEmailReport();
       
       if (emailSent) {
