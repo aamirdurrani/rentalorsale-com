@@ -12,14 +12,15 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Function to send email via PHP
+  // Function to send email via Node.js API
   const sendEmailReport = async () => {
     console.log('📧 Attempting to send email to:', formData.email)
     
     try {
         // Use current domain (works on localhost and live)
         const baseUrl = window.location.origin;
-        const response = await fetch(`${baseUrl}/send-email.php`, {
+        // CHANGE: Use /api/send-email instead of /send-email.php
+        const response = await fetch(`${baseUrl}/api/send-email`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
