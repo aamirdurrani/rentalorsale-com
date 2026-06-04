@@ -1,6 +1,14 @@
 import React, { useState } from 'react'
 import WealthChart from './WealthChart'
 import LeadCapture from './LeadCapture'
+import AgentMatch from './AgentMatch'
+
+// Helper function to extract zip code from address
+const extractZipFromAddress = (address) => {
+    if (!address) return null
+    const match = address.match(/\b\d{5}(?:-\d{4})?\b/)
+    return match ? match[0] : null
+}
 
 function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) {
   const [showLeadCapture, setShowLeadCapture] = useState(false)
@@ -18,8 +26,10 @@ function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) 
     )
   }
 
+  // Get zip code from propertyData or extract from address
+  const zipCode = propertyData?.zipCode || extractZipFromAddress(propertyData?.address)
+
   const formatCurrency = (value) => {
-    // Safely format currency
     if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
       return '$0'
     }
@@ -39,7 +49,6 @@ function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) 
     return results.betterOption === 'rent' ? '🏠' : '💰'
   }
 
-  // Safely get values with fallbacks
   const wealthDiff = results.wealthDifference || 0
   const rentWealth = results.rentWealth || 0
   const sellWealth = results.sellWealth || 0
@@ -56,6 +65,7 @@ function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) 
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Your Decision Analysis</h1>
         <p className="text-gray-600">{propertyData?.address || 'Your property'}</p>
+        {zipCode && <p className="text-xs text-gray-400 mt-1">ZIP: {zipCode}</p>}
       </div>
 
       {/* Main Recommendation Card */}
@@ -155,7 +165,7 @@ function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) 
         </div>
       </div>
 
-      {/* Call to Action */}
+      {/* Call to Action - Lead Capture */}
       {!showLeadCapture ? (
         <div className="card text-center bg-gradient-to-r from-purple-50 to-pink-50">
           <h3 className="text-2xl font-bold mb-3">Want the Full Report?</h3>
@@ -173,8 +183,26 @@ function ResultsDashboard({ results, propertyData, onReset, onNewCalculation }) 
         <LeadCapture 
           propertyData={propertyData}
           results={results}
-          onComplete={() => alert('Check your email for the report!')}
+          onComplete={() => setShowLeadCapture(false)}
         />
+      )}
+
+      {/* Agent Match Section - Shows if we have a zip code */}
+      {zipCode && (
+        <div className="mt-8">
+          <AgentMatch 
+            zipCode={zipCode}
+            propertyValue={results?.sellWealth || results?.rentWealth}
+            recommendation={results?.betterOption}
+          />
+        </div>
+      )}
+
+      {/* Debug: Show if zipCode is missing (remove later) */}
+      {!zipCode && (
+        <div className="mt-8 p-4 bg-yellow-50 rounded-lg text-center text-sm text-yellow-700">
+          ⚠️ No zip code found for this property. Agent matching requires a zip code.
+        </div>
       )}
 
       {/* Action Buttons */}

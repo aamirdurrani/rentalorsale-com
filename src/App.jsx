@@ -3,6 +3,8 @@ import LandingPage from './components/LandingPage'
 import AddressInput from './components/AddressInput'
 import DecisionEngine from './components/DecisionEngine'
 import ResultsDashboard from './components/ResultsDashboard'
+import AgentRegister from './pages/AgentRegister'
+
 
 function App() {
   const [step, setStep] = useState('landing')
@@ -31,6 +33,8 @@ function App() {
     setPropertyData(null)
     setCalculationResults(null)
   }
+
+
 
   return (
     <div className="min-h-screen w-full">

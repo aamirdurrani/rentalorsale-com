@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../services/supabase'
+import { generatePDF } from '../utils/generatePDF'
 
 function LeadCapture({ propertyData, results, onComplete }) {
   const [formData, setFormData] = useState({
@@ -11,48 +12,6 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-
-  // Function to send email via PHP (Hostinger)
-  const sendEmailReport = async () => {
-    console.log('📧 Attempting to send email to:', formData.email)
-    
-    try {
-        // Use current domain (works on localhost and live)
-        const baseUrl = window.location.origin;
-        // CHANGE: Use /send-email.php (PHP version) instead of /api/send-email
-        const response = await fetch(`${baseUrl}/send-email.php`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                email: formData.email,
-                name: formData.name,
-                property_address: propertyData?.address,
-                recommendation: results?.betterOption,
-                wealth_difference: results?.wealthDifference,
-                rent_wealth: results?.rentWealth,
-                sell_wealth: results?.sellWealth
-            })
-        });
-        
-        console.log('📧 Response status:', response.status)
-        
-        const data = await response.json();
-        console.log('📧 Response data:', data)
-        
-        if (data.success) {
-            console.log('✅ Email sent successfully!');
-            return true;
-        } else {
-            console.error('❌ Email failed:', data.error);
-            return false;
-        }
-    } catch (error) {
-        console.error('❌ Email send error:', error);
-        return false;
-    }
-};
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -72,27 +31,16 @@ function LeadCapture({ propertyData, results, onComplete }) {
       created_at: new Date().toISOString()
     }
 
-    console.log('📝 Sending lead data to Supabase:', leadData)
-
     try {
       // Save to Supabase
-      const { data, error: supabaseError } = await supabase
+      const { error: supabaseError } = await supabase
         .from('leads')
         .insert([leadData])
-        .select()
 
       if (supabaseError) throw supabaseError
-      console.log('✅ Lead saved successfully!', data)
+      console.log('✅ Lead saved successfully!')
       
-      // Send email via PHP
-      const emailSent = await sendEmailReport();
-      
-      if (emailSent) {
-        setSuccess(true)
-      } else {
-        setError('Report saved but email failed. We will send it shortly.')
-        setTimeout(() => onComplete(), 2000)
-      }
+      setSuccess(true)
       
     } catch (err) {
       console.error('❌ Error:', err)
@@ -105,17 +53,23 @@ function LeadCapture({ propertyData, results, onComplete }) {
   if (success) {
     return (
       <div className="card max-w-md mx-auto text-center">
-        <div className="text-6xl mb-4">📧</div>
-        <h3 className="text-2xl font-bold mb-2">Report Sent!</h3>
+        <div className="text-6xl mb-4">📄</div>
+        <h3 className="text-2xl font-bold mb-2">Your Report is Ready!</h3>
         <p className="text-gray-600 mb-4">
-          We've sent the analysis report to <strong>{formData.email}</strong>
+          Click the button below to download your analysis.
         </p>
-        <p className="text-sm text-gray-500 mb-4">
-          Please check your inbox (and spam folder).
-        </p>
-        <button onClick={onComplete} className="btn-primary">
-          Return to Results →
+        <button 
+          onClick={() => generatePDF(propertyData, results)}
+          className="btn-primary w-full mb-3"
+        >
+          Download PDF Report →
         </button>
+        <button onClick={onComplete} className="btn-secondary w-full">
+          Return to Results
+        </button>
+        <p className="text-xs text-gray-400 mt-4">
+          We've also saved your report. We'll email it to you when we launch on rentalorsale.com
+        </p>
       </div>
     )
   }
@@ -124,7 +78,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
     <div className="card max-w-md mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-center">Get Your Free Report</h3>
       <p className="text-gray-600 text-center mb-6">
-        Enter your details to receive the complete analysis
+        Enter your details to download your analysis
       </p>
       
       {error && (
@@ -190,10 +144,10 @@ function LeadCapture({ propertyData, results, onComplete }) {
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              Sending...
+              Saving...
             </span>
           ) : (
-            'Send My Report →'
+            'Generate My Report →'
           )}
         </button>
         
