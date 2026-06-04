@@ -1,9 +1,8 @@
-// server.js
+// server.js - Place this in your project root
 import express from 'express';
 import nodemailer from 'nodemailer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import supabase from './db.js';  // Import Supabase connection
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,8 +10,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
 app.use(express.json());
 app.use(express.static('dist'));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Email endpoint
 app.post('/api/send-email', async (req, res) => {
@@ -28,8 +33,16 @@ app.post('/api/send-email', async (req, res) => {
         return res.status(400).json({ error: 'Email and name are required' });
     }
     
+    // Check if SMTP is configured
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.log('📧 Email would be sent to:', email);
+        console.log('📧 Name:', name);
+        console.log('📧 Property:', propertyAddress);
+        return res.status(200).json({ success: true, message: 'Email logged (SMTP not configured)' });
+    }
+    
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
+        host: process.env.SMTP_HOST || 'smtp.hostinger.com',
         port: parseInt(process.env.SMTP_PORT) || 465,
         secure: true,
         auth: {
@@ -41,27 +54,16 @@ app.post('/api/send-email', async (req, res) => {
     const htmlContent = `
         <!DOCTYPE html>
         <html>
-        <head>
-            <style>
-                body { font-family: Arial, sans-serif; }
-                .header { background: linear-gradient(135deg, #2563EB, #7C3AED); color: white; padding: 20px; text-align: center; }
-                .content { padding: 20px; }
-                .recommendation { color: ${recommendation === 'rent' ? '#2563EB' : '#10B981'}; font-weight: bold; }
-            </style>
-        </head>
+        <head><style>body{font-family:Arial,sans-serif;}</style></head>
         <body>
-            <div style="max-width: 600px; margin: 0 auto;">
-                <div class="header">
-                    <h1>🏠 RentalOrSale.com</h1>
-                </div>
-                <div class="content">
-                    <h2>Hello ${name},</h2>
-                    <p>Thank you for using RentalOrSale.com!</p>
-                    <p><strong>Property:</strong> ${propertyAddress}</p>
-                    <p><strong>Recommendation:</strong> <span class="recommendation">${recommendation === 'rent' ? 'RENT IT OUT' : 'SELL NOW'}</span></p>
-                    <p><strong>Additional Wealth:</strong> $${Math.round(wealthDifference || 0).toLocaleString()}</p>
-                    <a href="https://rentalorsale.com" style="background:#2563EB;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">View Full Analysis →</a>
-                </div>
+            <div style="max-width:600px;margin:0 auto;padding:20px;">
+                <h1 style="color:#2563EB;">🏠 RentalOrSale.com</h1>
+                <h2>Hello ${name},</h2>
+                <p>Thank you for using RentalOrSale.com!</p>
+                <p><strong>Property:</strong> ${propertyAddress}</p>
+                <p><strong>Recommendation:</strong> ${recommendation === 'rent' ? 'RENT IT OUT' : 'SELL NOW'}</p>
+                <p><strong>Additional Wealth:</strong> $${Math.round(wealthDifference || 0).toLocaleString()}</p>
+                <a href="https://rentalorsale.com" style="background:#2563EB;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">View Full Analysis →</a>
             </div>
         </body>
         </html>
@@ -79,15 +81,15 @@ app.post('/api/send-email', async (req, res) => {
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Email error:', error);
-        res.status(500).json({ error: 'Failed to send email' });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Serve React app
+// Serve React app for all other routes
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
