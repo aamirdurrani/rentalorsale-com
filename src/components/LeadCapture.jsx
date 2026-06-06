@@ -15,42 +15,58 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [emailDebug, setEmailDebug] = useState('')
 
   const sendEmail = async () => {
-    setEmailDebug('Sending email...')
-    console.log('📧 Sending email to:', formData.email)
+  setEmailDebug('Step 1: Preparing to send...')
+  console.log('📧 Sending email to:', formData.email)
+  console.log('📧 Data being sent:', {
+    email: formData.email,
+    name: formData.name,
+    property_address: propertyData?.address,
+    recommendation: results?.betterOption,
+    wealth_difference: results?.wealthDifference,
+    rent_wealth: results?.rentWealth,
+    sell_wealth: results?.sellWealth
+  })
+  
+  try {
+    setEmailDebug('Step 2: Fetching https://rentalorsale.com/send-email.php...')
+    console.log('📧 Fetching: https://rentalorsale.com/send-email.php')
     
-    try {
-      const response = await fetch('https://rentalorsale.com/send-email.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          name: formData.name,
-          property_address: propertyData?.address,
-          recommendation: results?.betterOption,
-          wealth_difference: results?.wealthDifference,
-          rent_wealth: results?.rentWealth,
-          sell_wealth: results?.sellWealth
-        })
-      });
-      
-      const data = await response.json();
-      console.log('📧 Email response:', data);
-      setEmailDebug(`Response: ${JSON.stringify(data)}`);
-      
-      if (data.success) {
-        console.log('✅ Email sent!');
-        return true;
-      } else {
-        console.error('❌ Email failed:', data.error);
-        setEmailDebug(`Failed: ${data.error}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Email error:', error);
-      setEmailDebug(`Error: ${error.message}`);
+    const response = await fetch('https://rentalorsale.com/send-email.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: formData.email,
+        name: formData.name,
+        property_address: propertyData?.address,
+        recommendation: results?.betterOption,
+        wealth_difference: results?.wealthDifference,
+        rent_wealth: results?.rentWealth,
+        sell_wealth: results?.sellWealth
+      })
+    });
+    
+    setEmailDebug(`Step 3: Response status = ${response.status}`)
+    console.log('📧 Response status:', response.status)
+    
+    const data = await response.json();
+    console.log('📧 Response data:', data);
+    setEmailDebug(`Step 4: Response = ${JSON.stringify(data)}`)
+    
+    if (data.success) {
+      console.log('✅ Email sent successfully!');
+      setEmailDebug('✅ Email sent! Check your inbox.')
+      return true;
+    } else {
+      console.error('❌ Email failed:', data.error);
+      setEmailDebug(`❌ Failed: ${data.error}`)
       return false;
     }
-  };
+  } catch (error) {
+    console.error('❌ Email error:', error);
+    setEmailDebug(`❌ Error: ${error.message}`)
+    return false;
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault()
