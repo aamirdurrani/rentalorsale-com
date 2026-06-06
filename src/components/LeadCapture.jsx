@@ -17,7 +17,8 @@ function LeadCapture({ propertyData, results, onComplete }) {
     console.log('📧 Sending email to:', formData.email)
     
     try {
-      const response = await fetch('https://rentalorsale.com/send-email.php', {
+      const response = await fetch('/send-email.php', {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
