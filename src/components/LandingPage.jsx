@@ -58,4 +58,9 @@ function LandingPage({ onGetStarted }) {
   )
 }
 
+<div className="absolute top-4 right-4 flex gap-4">
+  <a href="/agent-dashboard" className="text-sm text-gray-600 hover:text-blue-600">Agent Login</a>
+  <a href="/agent-register" className="text-sm text-gray-600 hover:text-blue-600">Become an Agent</a>
+</div>
+
 export default LandingPage

@@ -13,6 +13,40 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  const sendEmail = async () => {
+    console.log('📧 Sending email to:', formData.email)
+    
+    try {
+      const response = await fetch('https://rentalorsale.com/send-email.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          name: formData.name,
+          property_address: propertyData?.address,
+          recommendation: results?.betterOption,
+          wealth_difference: results?.wealthDifference,
+          rent_wealth: results?.rentWealth,
+          sell_wealth: results?.sellWealth
+        })
+      });
+      
+      const data = await response.json();
+      console.log('📧 Email response:', data);
+      
+      if (data.success) {
+        console.log('✅ Email sent!');
+        return true;
+      } else {
+        console.error('❌ Email failed:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Email error:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -38,13 +72,16 @@ function LeadCapture({ propertyData, results, onComplete }) {
         .insert([leadData])
 
       if (supabaseError) throw supabaseError
-      console.log('✅ Lead saved successfully!')
+      console.log('✅ Lead saved!')
+      
+      // Send email
+      await sendEmail();
       
       setSuccess(true)
       
     } catch (err) {
       console.error('❌ Error:', err)
-      setError(err.message || 'Something went wrong. Please try again.')
+      setError(err.message || 'Something went wrong')
     } finally {
       setIsSubmitting(false)
     }
@@ -53,23 +90,23 @@ function LeadCapture({ propertyData, results, onComplete }) {
   if (success) {
     return (
       <div className="card max-w-md mx-auto text-center">
-        <div className="text-6xl mb-4">📄</div>
-        <h3 className="text-2xl font-bold mb-2">Your Report is Ready!</h3>
+        <div className="text-6xl mb-4">📧</div>
+        <h3 className="text-2xl font-bold mb-2">Report Sent!</h3>
         <p className="text-gray-600 mb-4">
-          Click the button below to download your analysis.
+          We've sent the report to <strong>{formData.email}</strong>
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          Check your inbox (and spam folder).
         </p>
         <button 
           onClick={() => generatePDF(propertyData, results)}
           className="btn-primary w-full mb-3"
         >
-          Download PDF Report →
+          Download PDF →
         </button>
         <button onClick={onComplete} className="btn-secondary w-full">
           Return to Results
         </button>
-        <p className="text-xs text-gray-400 mt-4">
-          We've also saved your report. We'll email it to you when we launch on rentalorsale.com
-        </p>
       </div>
     )
   }
@@ -78,7 +115,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
     <div className="card max-w-md mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-center">Get Your Free Report</h3>
       <p className="text-gray-600 text-center mb-6">
-        Enter your details to download your analysis
+        Enter your details to receive the analysis
       </p>
       
       {error && (
@@ -132,7 +169,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
             className="w-4 h-4"
           />
           <label className="text-sm text-gray-600">
-            I agree to receive the report and occasional market updates
+            I agree to receive the report
           </label>
         </div>
         
@@ -141,19 +178,8 @@ function LeadCapture({ propertyData, results, onComplete }) {
           disabled={isSubmitting}
           className="btn-primary w-full disabled:opacity-50"
         >
-          {isSubmitting ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              Saving...
-            </span>
-          ) : (
-            'Generate My Report →'
-          )}
+          {isSubmitting ? 'Sending...' : 'Send My Report →'}
         </button>
-        
-        <p className="text-xs text-gray-400 text-center">
-          We respect your privacy. Unsubscribe anytime.
-        </p>
       </form>
     </div>
   )
