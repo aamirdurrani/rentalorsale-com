@@ -12,13 +12,14 @@ function LeadCapture({ propertyData, results, onComplete }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [emailDebug, setEmailDebug] = useState('')
 
   const sendEmail = async () => {
+    setEmailDebug('Sending email...')
     console.log('📧 Sending email to:', formData.email)
     
     try {
-      const response = await fetch('/send-email.php', {
-
+      const response = await fetch('https://rentalorsale.com/send-email.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -34,16 +35,19 @@ function LeadCapture({ propertyData, results, onComplete }) {
       
       const data = await response.json();
       console.log('📧 Email response:', data);
+      setEmailDebug(`Response: ${JSON.stringify(data)}`);
       
       if (data.success) {
         console.log('✅ Email sent!');
         return true;
       } else {
         console.error('❌ Email failed:', data.error);
+        setEmailDebug(`Failed: ${data.error}`);
         return false;
       }
     } catch (error) {
       console.error('❌ Email error:', error);
+      setEmailDebug(`Error: ${error.message}`);
       return false;
     }
   };
@@ -52,6 +56,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
     e.preventDefault()
     setIsSubmitting(true)
     setError('')
+    setEmailDebug('')
 
     const leadData = {
       name: formData.name,
@@ -76,9 +81,15 @@ function LeadCapture({ propertyData, results, onComplete }) {
       console.log('✅ Lead saved!')
       
       // Send email
-      await sendEmail();
+      const emailSent = await sendEmail();
       
-      setSuccess(true)
+      if (emailSent) {
+        setSuccess(true)
+      } else {
+        setError('Report saved but email failed. You can still download the PDF.')
+        // Still show success but with warning
+        setTimeout(() => setSuccess(true), 2000)
+      }
       
     } catch (err) {
       console.error('❌ Error:', err)
@@ -94,16 +105,16 @@ function LeadCapture({ propertyData, results, onComplete }) {
         <div className="text-6xl mb-4">📧</div>
         <h3 className="text-2xl font-bold mb-2">Report Sent!</h3>
         <p className="text-gray-600 mb-4">
-          We've sent the report to <strong>{formData.email}</strong>
+          We've sent the analysis report to <strong>{formData.email}</strong>
         </p>
         <p className="text-sm text-gray-500 mb-4">
-          Check your inbox (and spam folder).
+          Please check your inbox (and spam folder).
         </p>
         <button 
           onClick={() => generatePDF(propertyData, results)}
           className="btn-primary w-full mb-3"
         >
-          Download PDF →
+          Download PDF Report →
         </button>
         <button onClick={onComplete} className="btn-secondary w-full">
           Return to Results
@@ -116,12 +127,18 @@ function LeadCapture({ propertyData, results, onComplete }) {
     <div className="card max-w-md mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-center">Get Your Free Report</h3>
       <p className="text-gray-600 text-center mb-6">
-        Enter your details to receive the analysis
+        Enter your details to receive the complete analysis
       </p>
       
       {error && (
         <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-sm">
           ⚠️ {error}
+        </div>
+      )}
+      
+      {emailDebug && (
+        <div className="bg-blue-50 text-blue-700 p-2 rounded-lg mb-4 text-xs font-mono">
+          Debug: {emailDebug}
         </div>
       )}
       
@@ -170,7 +187,7 @@ function LeadCapture({ propertyData, results, onComplete }) {
             className="w-4 h-4"
           />
           <label className="text-sm text-gray-600">
-            I agree to receive the report
+            I agree to receive the report and occasional market updates
           </label>
         </div>
         
